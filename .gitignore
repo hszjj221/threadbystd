@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+*.tlog
+*.pdb
+*.log
+*.ilk
+*.idb
+.vs/threadbystd/v14/.suo
