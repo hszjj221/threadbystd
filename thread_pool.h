@@ -29,6 +29,11 @@ private:
 	tp::Thread_guard<std::thread> tg_;
 public:
 	Thread_pool();
+	~Thread_pool() { Stop(); cond_.notify_all(); }
+
+	template<class Function, class... Args>
+	std::future<typename std::result_of<Function(Args...)>::type> Submit(Function&&, Args&&...);
+	void Stop() { stop_ = true; }
 };
 
 Thread_pool::Thread_pool()
@@ -44,15 +49,35 @@ Thread_pool::Thread_pool()
 				task_type task;
 				{
 					std::unique_lock<std::mutex> lock(this->mtx_);
-					this->cond_.wait(lock, [this] {return !this->tasks_.empty(); });
+					this->cond_.wait(lock, [this] {return stop_ || !this->tasks_.empty(); });
+					if (stop_) return;
 					task = std::move(this->tasks_.front());
 					this->tasks_.pop();
 				}
 				task();
 			}
-		}
-		));
+		}));
 	}
+}
+
+template<class Function, class... Args>
+std::future<typename std::result_of<Function(Args...)>::type>
+Thread_pool::Submit(Function&& fcn, Args&&... args) {
+	typedef typename std::result_of<Function(Args...)>::type return_type;
+	typedef std::packaged_task<return_type()> task;
+
+	auto t = std::make_shared<task>(
+		std::bind(std::forward<Function>(fcn), std::forward<Args>(args)...));
+	auto ret = t->get_future();
+	{
+		std::lock_guard<std::mutex> lg(mtx_);
+		if (stop_) {
+			throw std::runtime_error("thread pool has stopped");
+		}
+		tasks_.emplace([t] {(*t)(); });
+	}
+	cond_.notify_one();
+	return ret;
 }
 
 }

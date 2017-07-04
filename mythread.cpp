@@ -1,35 +1,23 @@
 #include <iostream>
-#include <functional>
-#include <chrono>
 #include <thread>
-#include <mutex>
-#include <future>
-#include <condition_variable>
-#include <atomic>
+#include <vector>
+#include <functional>
 
+#include "thread_guard.h"
+#include "thread_pool.h"
 
-std::atomic<bool> ready(false);
-std::atomic_flag winner = ATOMIC_FLAG_INIT;
-
-void test(int id) {
-	while (!ready) {
-		std::this_thread::yield();
-	}
-	for (int i = 0; i < 1000000; ++i){}
-	if (!winner.test_and_set()) {
-		std::cout << id << " won!" << std::endl;
-	}
-}
+using namespace std;
 
 int main()
 {
-	std::vector<std::thread> threads;
-	for (int i = 0; i < 10; ++i) {
-		threads.push_back(std::thread(test, i));
+	tp::Thread_pool tp;
+	vector<std::future<int>> v;
+	for (int i = 0; i != 10; ++i) {
+		auto ans = tp.Submit([](int answer) {return answer; }, i);
+		v.push_back(std::move(ans));
 	}
-	ready = true;
-	for (auto& th : threads) {
-		th.join();
+	for (int i = 0; i != v.size(); ++i) {
+		cout << v[i].get() << endl;
 	}
 	system("pause");
 	return 0;
