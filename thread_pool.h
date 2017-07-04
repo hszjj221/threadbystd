@@ -10,7 +10,6 @@
 #include <vector>
 #include <queue>
 #include <utility>
-#include <iostream>
 #include <type_traits>
 
 #include "thread_guard.h"
@@ -28,7 +27,7 @@ private:
 	std::vector<std::thread> threads_;
 	tp::Thread_guard<std::thread> tg_;
 public:
-	Thread_pool();
+	explicit Thread_pool(int n = 0);
 	~Thread_pool() { Stop(); cond_.notify_all(); }
 
 	template<class Function, class... Args>
@@ -36,13 +35,18 @@ public:
 	void Stop() { stop_ = true; }
 };
 
-Thread_pool::Thread_pool()
+Thread_pool::Thread_pool(int n)
 	:stop_(false)
 	, tg_(threads_) {
-	size_t nthreads = std::thread::hardware_concurrency();
-	nthreads = nthreads == 0 ? 2 : nthreads;
+	auto nthreads = n;
+	if (nthreads == 0) {
+		nthreads = std::thread::hardware_concurrency();
+		nthreads = nthreads == 0 ? 2 : nthreads;
+	} else if (nthreads < 0) {
+		throw std::runtime_error("the number of threads must be greater than 0.");
+	}
 
-	for (size_t i = 0; i != nthreads; ++i) {
+	for (int i = 0; i != nthreads; ++i) {
 		threads_.push_back(std::thread(
 			[this] {
 			while (!stop_) {
